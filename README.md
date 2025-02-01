@@ -57,6 +57,17 @@ pip install -r requirements.txt
 python3 -m pip install -r requirements.txt
 ```
 
+Once completed, execute the following command to avoid issues with video processing:
+```
+brew install libpng
+
+export C_INCLUDE_PATH=/opt/homebrew/Cellar/libpng/1.6.45/include
+export LIBRARY_PATH=/opt/homebrew/Cellar/libpng/1.6.45/lib
+
+pip3 install dlib --force-reinstall 
+```
+
+
 ## How to run the script to get the CSV file of classification scores?
 Please change the **filepath** to the image folder that you would like to try. 😄
 
