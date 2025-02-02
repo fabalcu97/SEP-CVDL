@@ -1,211 +1,240 @@
 import torch
-import torch
-import torch.nn as nn
-from torchvision.transforms import transforms
-from torch.utils.data import DataLoader
-import torch.nn as nn
-import torch.optim as optim
-from tqdm import tqdm
-# import pandas as pd
-# import numpy as np
-# from matplotlib import pyplot as plt
-# from sklearn.model_selection import ParameterGrid
+import torch.nn.functional as F
+import torchvision.transforms as transforms
+from PIL import Image
+import numpy as np
+import cv2
+import dlib
+import argparse
+import textwrap
+
+from models import GiMeFive
+from hook import Hook
 
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
-# device = torch.device("cpu")
+device = torch.device("cpu")
 
-from get_dataset import GiMeFiveDataset
-from models import GiMeFive, GiMeFiveRes
-from models import SEBlock, ResidualBlock, BasicBlock
-from models import VGG
-from models import ResNet, EmotionClassifierResNet18, EmotionClassifierResNet34
+class_labels = ['happiness', 'surprise', 'sadness', 'anger', 'disgust', 'fear']
 
+model = GiMeFive().to(device)
+model.load_state_dict(torch.load('best_GiMeFive.pth', map_location=device))
+model.eval()
 
-def main():
-    transform = transforms.Compose([
-        transforms.Resize((64, 64)),
-        transforms.Grayscale(num_output_channels=3),
-        transforms.RandomHorizontalFlip(), 
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        # transforms.RandomErasing(scale=(0.02,0.25)),
-    ])
+final_layer = model.conv5
+hook = Hook()
+hook.register_hook(final_layer)
+
+transform = transforms.Compose([
+    transforms.Resize((64, 64)),
+    transforms.Grayscale(num_output_channels=3),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+])
+
+def classify_image(image_path):
+    image = Image.open(image_path).convert('RGB')
+    image_tensor = transform(image).unsqueeze(0).to(device)
+    image_array = np.array(image)
+    with torch.no_grad():
+        outputs = model(image_tensor)
+        probabilities = F.softmax(outputs, dim=1)
+    scores = probabilities.cpu().numpy().flatten()
+    rounded_scores = [round(score, 2) for score in scores]
+    
+    return rounded_scores, image, image_array, image_tensor
+
+# Please download the haarcascade_frontalface_default.xml file from:
+# https://github.com/werywjw/SEP-CVDL/blob/main/haarcascade_frontalface_default.xml
+from pathlib import Path
+face_classifier = cv2.CascadeClassifier(
+    cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
+# Please download the shape_predictor_68_face_landmarks.dat file from:
+# https://github.com/werywjw/SEP-CVDL/blob/main/shape_predictor_68_face_landmarks.dat
+predictor = dlib.shape_predictor('shape_predictor_68_face_landmarks.dat')
+
+# text settings
+font = cv2.FONT_HERSHEY_SIMPLEX
+font_scale = 1
+font_color = (154, 1, 254) # BGR color neon pink 254,1,154
+thickness = 2
+line_type = cv2.LINE_AA
+
+max_emotion = ''
+transparency = 0.4
+
+def detect_emotion(pil_crop_img):
+    # Convert NumPy array to PIL Image
+    pil_crop_img = Image.fromarray(pil_crop_img)
+    
+    vid_fr_tensor = transform(pil_crop_img).unsqueeze(0).to(device)
+    # with torch.no_grad():
+    logits = model(vid_fr_tensor)
+    probabilities = F.softmax(logits, dim=1)
+    predicted_class = torch.argmax(probabilities, dim=1)
+
+    predicted_class_idx = predicted_class.item()
+
+    one_hot_output = torch.FloatTensor(1, probabilities.shape[1]).zero_()
+    one_hot_output[0][predicted_class_idx] = 1
+    logits.backward(one_hot_output, retain_graph=True)
+
+    gradients = hook.backward_out
+    feature_maps = hook.forward_out
+
+    weights = torch.mean(gradients, dim=[2, 3], keepdim=True)
+    cam = torch.sum(weights * feature_maps, dim=1, keepdim=True)
+    cam = cam.clamp(min=0).squeeze() 
+
+    cam -= cam.min()
+    cam /= cam.max()
+    cam = cam.cpu().detach().numpy()
+
+    # scores = probabilities.cpu().numpy().flatten()
+    scores = probabilities.cpu().detach().numpy().flatten()
+    rounded_scores = [round(score, 2) for score in scores]
+    return rounded_scores, cam
+
+def plot_heatmap(x, y, w, h, cam, pil_crop_img, video_frame):
+    # resize cam to w, h
+    cam = cv2.resize(cam, (w, h))
+    
+    # apply color map to resized cam
+    heatmap = cv2.applyColorMap(np.uint8(255 * cam), cv2.COLORMAP_JET)
+    heatmap = np.float32(heatmap) / 255
+    
+    # Get the region of interest on the video frame
+    roi = video_frame[y:y+h, x:x+w, :]
+
+    # Blend the heatmap with the ROI
+    overlay = heatmap * transparency + roi / 255 * (1 - transparency)
+    overlay = np.clip(overlay, 0, 1)
+
+    # Replace the ROI with the blended overlay
+    video_frame[y:y+h, x:x+w, :] = np.uint8(255 * overlay)
         
-    # rafdb_dataset_train = GiMeFiveDataset(csv_file='archive/RAF-DB/train_RAF_labels.csv',
-    #                             img_dir='archive/RAF-DB/train/',
-    #                             transform=transform)
+def update_max_emotion(rounded_scores):  
+    # get index from max value in rounded_scores
+    max_index = np.argmax(rounded_scores)
+    max_emotion = class_labels[max_index]
+    return max_emotion # returns max_emotion as string
 
-    rafdb_dataset_train = GiMeFiveDataset(csv_file='archive/FER2013/train_FER_labels.csv',
-                                img_dir='archive/FER2013/train/',
-                                transform=transform)
+def print_max_emotion(x, y, max_emotion, video_frame):
+    # position to put the text for the max emotion
+    org = (x, y - 15)
+    cv2.putText(video_frame, max_emotion, org, font, font_scale, font_color, thickness, line_type)
+    
+def print_all_emotion(x, y, w, rounded_scores, video_frame):
+    # create text to be displayed
+    org = (x + w + 10, y - 20)
+    for index, value in enumerate(class_labels):
+        emotion_str = (f'{value}: {rounded_scores[index]:.2f}')
+        y = org[1] + 40
+        org = (org[0], y)
+        cv2.putText(video_frame, emotion_str, org, font, font_scale, font_color, thickness, line_type)
+    
+# identify Face in Video Stream
+def detect_bounding_box(video_frame, counter):
+    global max_emotion
+    gray_image = cv2.cvtColor(video_frame, cv2.COLOR_BGR2GRAY)
+    
+    # notes: MultiScale optimized
+    faces = face_classifier.detectMultiScale(gray_image, scaleFactor=1.1, minNeighbors=10, minSize=(64, 64))
 
-    # rafdb_dataset_train = GiMeFiveDataset(csv_file='data/train_labels.csv',
-    #                             img_dir='data/train/',
-    #                             transform=transform)
-    data_train_loader = DataLoader(rafdb_dataset_train, batch_size=16, shuffle=True, num_workers=4)
-    train_image, train_label = next(iter(data_train_loader))
-    print(f"Train batch: image shape {train_image.shape}, labels shape {train_label.shape}")
+    for (x, y, w, h) in faces:
+        cv2.rectangle(gray_image, (x, y), (x+w, y+h), (255, 0, 0), 0)
 
-    rafdb_dataset_vali = GiMeFiveDataset(csv_file='data/valid_labels.csv',
-                                img_dir='data/valid',
-                                transform=transform)
-    data_vali_loader = DataLoader(rafdb_dataset_vali, batch_size=16, shuffle=False, num_workers=0)
-    vali_image, vali_label = next(iter(data_vali_loader))
-    print(f"Vali batch: image shape {vali_image.shape}, labels shape {vali_label.shape}")
+        # convert the ROI to a dlib rectangle
+        dlib_rect = dlib.rectangle(x, y, x+w, y+h)
 
-    # rafdb_dataset_test = GiMeFiveDataset(csv_file='archive/RAF-DB/test_RAF_labels.csv',
-    #                             img_dir='archive/RAF-DB/test/',
-    #                             transform=transform)
+        # detect facial landmarks through dlib
+        landmarks = predictor(gray_image, dlib_rect)
 
-    rafdb_dataset_test = GiMeFiveDataset(csv_file='archive/FER2013/test_FER_labels.csv',
-                                img_dir='archive/FER2013/test/',
-                                transform=transform)
+        pil_crop_img = video_frame[y : y + h, x : x + w]
+        rounded_scores, cam = detect_emotion(pil_crop_img)
+            
+        if counter == 0:
+            max_emotion = update_max_emotion(rounded_scores) 
+            
+        # draw landmarks on the video_frame
+        for i in range(68):  # Assuming you have 68 landmarks
+            cv2.circle(video_frame, (landmarks.part(i).x, landmarks.part(i).y), 1, (255, 255, 255), 0)
+            
+        plot_heatmap(x, y, w, h, cam, pil_crop_img, video_frame)
+        print_max_emotion(x, y, max_emotion, video_frame) # displays the max_emotion according to evaluation_frequency
+        print_all_emotion(x, y, w, rounded_scores, video_frame) # evaluates every video_frame for debugging
 
-    # rafdb_dataset_test = GiMeFiveDataset(csv_file='data/test_labels.csv',
-    #                             img_dir='data/test/',
-    #                             transform=transform)
-    data_test_loader = DataLoader(rafdb_dataset_test, batch_size=16, shuffle=False, num_workers=0)
-    test_image, test_label = next(iter(data_test_loader))
-    print(f"Test batch: image shape {test_image.shape}, labels shape {test_label.shape}")
+    return faces
+
+def create_video_out(source, input_path_to_video):
+    if source == 'camera':
+        video_capture = cv2.VideoCapture(0)
+        fps = 10
+        out_file_name = 'cam_eval_video.mp4'
+    elif source == 'video':
+        video_capture = cv2.VideoCapture(input_path_to_video)
+        fps = int(video_capture.get(cv2.CAP_PROP_FPS))
+        out_file_name = 'eval_video.mp4'
+    else:
+        print('unknown input')
+        print('please enter camera or video')
+    frame_width = int(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fourcc = cv2.VideoWriter_fourcc(*'MP4V')
+    out = cv2.VideoWriter(out_file_name, fourcc, fps, (frame_width, frame_height))
+    return out, video_capture
 
 
-    model = GiMeFive().to(device)
+# loop for Real-Time Face Detection
+def evaluate_input(source, input_path_to_video):
+    out, video_capture = create_video_out(source, input_path_to_video)
+    
+    counter = 0
+    evaluation_frequency = 5
 
-    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"Total trainable parameters: {total_params}")
+    while True:
 
-    criterion = nn.CrossEntropyLoss()
-    # optimizer = optim.Adam(model.parameters(), lr=0.001)
-    # optimizer = optim.Adam(model.parameters(), lr=0.001, amsgrad=True)
-    # optimizer = optim.AdamW(model.parameters(), lr=0.001, weight_decay=1e-5)
-    # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9, nesterov=True)
-    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=1e-4)
-
-    patience = 15
-    best_val_acc = 0  
-    patience_counter = 0
-
-    num_epochs = 80
-
-    train_losses = []
-    val_losses = []
-    train_accuracies = []
-    val_accuracies = []
-    test_losses = []
-    test_accuracies = []
-
-    for epoch in range(num_epochs):
-        model.train()
-        running_loss = 0.0
-        correct = 0
-        total = 0
-
-        for data in tqdm(data_train_loader, desc=f"Epoch {epoch+1}/{num_epochs}"):
-            inputs, labels = data[0].to(device), data[1].to(device)
-
-            optimizer.zero_grad()
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-
-            running_loss += loss.item()
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-
-        train_loss = running_loss / len(data_train_loader)
-        train_acc = correct / total
-        train_losses.append(train_loss)
-        train_accuracies.append(train_acc)
-
-        model.eval()
-        test_running_loss = 0.0
-        test_correct = 0
-        test_total = 0
-        with torch.no_grad():
-            for data in data_test_loader:
-                inputs, labels = data[0].to(device), data[1].to(device)
-                outputs = model(inputs)
-                loss = criterion(outputs, labels)
-                test_running_loss += loss.item()
-                _, predicted = torch.max(outputs.data, 1)
-                test_total += labels.size(0)
-                test_correct += (predicted == labels).sum().item()
-
-        test_loss = test_running_loss / len(data_test_loader)
-        test_acc = test_correct / test_total
-        test_losses.append(test_loss)
-        test_accuracies.append(test_acc)
-
-        model.eval()
-        val_running_loss = 0.0
-        val_correct = 0
-        val_total = 0
-        with torch.no_grad():
-            for data in data_vali_loader:
-                inputs, labels = data[0].to(device), data[1].to(device)
-                outputs = model(inputs)
-                loss = criterion(outputs, labels)
-                val_running_loss += loss.item()
-                _, predicted = torch.max(outputs.data, 1)
-                val_total += labels.size(0)
-                val_correct += (predicted == labels).sum().item()
-
-        val_loss = val_running_loss / len(data_vali_loader)
-        val_acc = val_correct / val_total
-        val_losses.append(val_loss)
-        val_accuracies.append(val_acc)
-
-        print(f"Epoch {epoch+1}, Train Loss: {train_loss}, Train Accuracy: {train_acc}, Test Loss: {test_loss}, Test Accuracy: {test_acc}, Validation Loss: {val_loss}, Validation Accuracy: {val_acc}")
-
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
-            patience_counter = 0 
-            torch.save(model.state_dict(), 'best_model.pth')
-        else:
-            patience_counter += 1
-            print(f"No improvement in validation accuracy for {patience_counter} epochs.")
+        result, video_frame = video_capture.read()  # read frames from the video
+        if result is False:
+            break  # terminate the loop if the frame is not read successfully
         
-        if patience_counter > patience:
-            print("Stopping early due to lack of improvement in validation accuracy.")
+        faces = detect_bounding_box(video_frame, counter)  # apply the function we created to the video frame, faces as variable not used
+        cv2.imshow("GiMeFive", video_frame)  # display the processed frame in a window named "GiMeFive"
+        out.write(video_frame)  # write the processed frame to the output video file
+        
+        if cv2.waitKey(1) & 0xFF == ord("q"):
             break
+        
+        counter += 1
+        if counter == evaluation_frequency:
+            counter = 0
 
-    # Plotting and saving results
-
-    # plt.figure(figsize=(15, 7))
-    # plt.subplot(1, 2, 1)
-    # plt.plot(range(1, 80), train_losses, label='Train Loss') # change this number after '(1, _)' to num_epochs+1
-    # plt.plot(range(1, 80), test_losses, label='Test Loss') # change this number after '(1, _)' to num_epochs+1
-    # plt.plot(range(1, 80), val_losses, label='Validation Loss') # change this number after '(1, _)' to num_epochs+1
-    # plt.xlabel('Epochs')
-    # plt.ylabel('Loss')
-    # plt.title('Losses on GiMeFive') # change
-    # plt.legend()
-
-    # plt.subplot(1, 2, 2)
-    # plt.plot(range(1, 80), train_accuracies, label='Train Accuracy') # change this number after '(1, _)' to num_epochs+1
-    # plt.plot(range(1, 80), test_accuracies, label='Test Accuracy') # change this number after '(1, _)' to num_epochs+1
-    # plt.plot(range(1, 80), val_accuracies, label='Validation Accuracy') # change this number after '(1, _)' to num_epochs+1
-    # plt.xlabel('Epochs')
-    # plt.ylabel('Accuracy')
-    # plt.title('Accuracies on GiMeFive') # change
-    # plt.legend()
-
-    # plt.show()
+    hook.unregister_hook()        
+    video_capture.release()
+    out.release()
+    cv2.destroyAllWindows()
 
 
-    # df = pd.DataFrame({
-    #     'Epoch': range(1, 60), # change this number after '(1, _)' to num_epochs+1
-    #     'Train Loss': train_losses,
-    #     'Test Loss': test_losses,
-    #     'Validation Loss': val_losses,
-    #     'Train Accuracy': train_accuracies,
-    #     'Test Accuracy': test_accuracies,
-    #     'Validation Accuracy': val_accuracies
-    # })
-    # df.to_csv('result_gimefive.csv', index=False) # change this CSV
-
+def main(args):
+    print(args)
+    evaluate_input(args.source, args.input_path_to_video)
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawTextHelpFormatter,
+        description=textwrap.dedent(
+            '''\
+            This program performs emotion evaluation of faces from given video or camera feed.
+            
+            If "camera" is selected it will generate a video with analyzed emotions from live stream,
+            and store it in the file cam_eval_video.mp4.
+            
+            If "video" is selected it will analyze emotions from given video,
+            and store it in the file eval_video.mp4.
+            ''')
+    )
+    parser.add_argument('-s', '--source', type=str, help='Enter "camera" or "video"', default='video')
+    parser.add_argument('-i', '--input_path_to_video', type=str, help='Path to the video file.', default='video/test_video_noemotions.mp4')
+    args = parser.parse_args()
+
+    main(args)
