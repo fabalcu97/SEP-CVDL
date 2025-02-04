@@ -1,6 +1,8 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
+from variables import hyperparameters
+
 
 class EmotionClassifier(nn.Module):
     def __init__(self):
@@ -13,15 +15,21 @@ class EmotionClassifier(nn.Module):
         self.bn3 = nn.BatchNorm2d(256)
         self.conv4 = nn.Conv2d(256, 512, kernel_size=3, padding=1)
         self.bn4 = nn.BatchNorm2d(512)
-        self.conv5 = nn.Conv2d(512, 1024, kernel_size=3, padding=1)
-        self.bn5 = nn.BatchNorm2d(1024)
+        self.conv5 = nn.Conv2d(
+            512, hyperparameters["conv5_filters"], kernel_size=3, padding=1
+        )
+        self.bn5 = nn.BatchNorm2d(hyperparameters["conv5_filters"])
 
         self.pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc1 = nn.Linear(1024, 2048)
-        self.fc2 = nn.Linear(2048, 1024)
-        self.dropout1 = nn.Dropout(0.2)
+        self.fc1 = nn.Linear(
+            hyperparameters["fc1_input"], hyperparameters["fc1_output"]
+        )
+        self.fc2 = nn.Linear(
+            hyperparameters["fc1_output"], hyperparameters["fc2_output"]
+        )
+        self.dropout1 = nn.Dropout(hyperparameters["dropout1"])
         self.dropout2 = nn.Dropout(0.5)
-        self.fc3 = nn.Linear(1024, 6)
+        self.fc3 = nn.Linear(hyperparameters["fc2_output"], 6)
 
     def forward(self, x):  # (batch_size, channels=3, 64, 64)
         x = F.relu(self.bn1(self.conv1(x)))  # (batch_size, 64, 64, 64)
