@@ -64,7 +64,7 @@ experiments = {
     },
     "class_weights_ADAMW_1": {
         "apply_class_weight": True,
-        "optimizer": "adam_optimizer",
+        "optimizer": "adamw_optimizer",
         "dataset": "GiMeFive",
         "hyperparameters": {
             "num_epochs": 80,
