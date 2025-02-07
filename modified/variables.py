@@ -1,3 +1,25 @@
+def get_configuration(experiment_name):
+    baseline_configuration = experiments["baseline"]
+    configuration = experiments[experiment_name]
+
+    new_configuration = {
+        **baseline_configuration,
+        **configuration,
+        "hyperparameters": {
+            **baseline_configuration["hyperparameters"],
+            **(
+                configuration["hyperparameters"]
+                if "hyperparameters" in configuration
+                else {}
+            ),
+        },
+    }
+
+    return new_configuration
+
+
+output_path = "outputs"
+
 datasets = {
     "GiMeFive": {
         "train": {
@@ -17,60 +39,41 @@ datasets = {
 
 experiments = {
     "baseline": {
-        "apply_class_weight": False,
+        "apply_weighted_loss": False,
         "optimizer": "sgd_optimizer",
         "dataset": "GiMeFive",
+        "use_scheduler": False,
+        "use_label_smoothing": False,
         "hyperparameters": {
             "num_epochs": 80,
             "batch_size": 16,
             "learning_rate": 1e-3,
             "weight_decay": 1e-4,
             "momentum": 0.9,
+            # Model hyperparameters
+            "dropout1": 0.2,
+            "conv5_filters": 1024,  # fc1_input
+            "fc1_input": 1024,
+            "fc1_output": 2048,  # fc2_input
+            "fc2_output": 1024,
         },
     },
     "class_weights_SGD": {
-        "apply_class_weight": True,
+        "apply_weighted_loss": True,
         "optimizer": "sgd_optimizer",
-        "dataset": "GiMeFive",
-        "hyperparameters": {
-            "num_epochs": 80,
-            "batch_size": 16,
-            "learning_rate": 1e-3,  # 0.001
-            "weight_decay": 1e-4,
-            "momentum": 0.9,
-        },
     },
     "class_weights_ADAM": {
-        "apply_class_weight": True,
+        "apply_weighted_loss": True,
         "optimizer": "adam_optimizer",
-        "dataset": "GiMeFive",
-        "hyperparameters": {
-            "num_epochs": 80,
-            "batch_size": 16,
-            "learning_rate": 1e-3,
-            "weight_decay": 1e-4,
-        },
     },
     "class_weights_ADAMW": {
-        "apply_class_weight": True,
+        "apply_weighted_loss": True,
         "optimizer": "adam_optimizer",
-        "dataset": "GiMeFive",
-        "hyperparameters": {
-            "num_epochs": 80,
-            "batch_size": 16,
-            "learning_rate": 1e-3,
-            "weight_decay": 1e-4,
-        },
     },
     "class_weights_ADAMW_1": {
-        "apply_class_weight": True,
+        "apply_weighted_loss": True,
         "optimizer": "adamw_optimizer",
-        "dataset": "GiMeFive",
         "hyperparameters": {
-            "num_epochs": 80,
-            "batch_size": 16,
-            "learning_rate": 1e-3,
-            "weight_decay": 1e-4,
             "dropout1": 0.3,
             "conv5_filters": 768,
             "fc1_input": 768,
@@ -78,13 +81,76 @@ experiments = {
             "fc2_output": 512,
         },
     },
+    "SCHEDULER": {
+        "apply_weighted_loss": True,
+        "optimizer": "adamw_optimizer",
+        "use_scheduler": True,
+        "hyperparameters": {
+            "dropout1": 0.3,
+            "conv5_filters": 768,
+            "fc1_input": 768,
+            "fc1_output": 1024,
+            "fc2_output": 512,
+        },
+    },
+    "weighted_loss": {
+        "apply_weighted_loss": True,
+    },
+    "weighted_loss_w_label_smoothing": {
+        "apply_weighted_loss": True,
+        "use_label_smoothing": True,
+    },
+    # weighted loss, label smoothing and hyperparameter tunning
+    "wl_ls_hp_tunning": {
+        "apply_weighted_loss": True,
+        "use_label_smoothing": True,
+        "hyperparameters": {
+            "dropout1": 0.4,
+            "conv5_filters": 768,
+            "fc1_input": 768,
+            "fc1_output": 512,
+            "fc2_output": 256,
+        },
+    },
+    "wl_ls_hp_tunning_2": {
+        "apply_weighted_loss": True,
+        "use_label_smoothing": True,
+        "hyperparameters": {
+            "dropout1": 0.4,
+            "fc1_output": 512,
+            "fc2_output": 256,
+            # 2
+            "conv5_filters": 1024,
+            "fc1_input": 1024,
+            # "learning_rate": 0.01,
+            # "weight_decay": 0.003,
+            # "momentum": 0.9,
+        },
+    },
+    "wl_ls_hp_tunning_3": {
+        "apply_weighted_loss": True,
+        "use_label_smoothing": True,
+        "hyperparameters": {
+            "dropout1": 0.4,
+            "fc1_output": 512,
+            "fc2_output": 256,
+            # 2
+            "conv5_filters": 1024,
+            "fc1_input": 1024,
+            # 3
+            "learning_rate": 0.01,
+            "weight_decay": 0.003,
+            "momentum": 0.9,
+        },
+    },
+    # Use wl_ls_hp_tunning + AdamW optimizer
+    # data_augmentation
+    # increase batch size
 }
 
-output_path = "outputs"
-
 # Change the experiment only
-experiment_name = "class_weights_ADAMW_1"
+experiment_name = "wl_ls_hp_tunning_3"
 
-configuration = experiments[experiment_name]
+configuration = get_configuration(experiment_name)
 dataset = datasets[configuration["dataset"]]
 hyperparameters = configuration["hyperparameters"]
