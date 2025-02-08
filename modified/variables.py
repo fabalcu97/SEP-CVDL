@@ -122,14 +122,12 @@ experiments = {
             # 2
             "conv5_filters": 1024,
             "fc1_input": 1024,
-            # "learning_rate": 0.01,
-            # "weight_decay": 0.003,
-            # "momentum": 0.9,
         },
     },
     "wl_ls_hp_tunning_3": {
         "apply_weighted_loss": True,
         "use_label_smoothing": True,
+        "use_scheduler": True,
         "hyperparameters": {
             "dropout1": 0.4,
             "fc1_output": 512,
@@ -143,13 +141,26 @@ experiments = {
             "momentum": 0.9,
         },
     },
+    "wl_ls_hp_adw": {
+        "apply_weighted_loss": True,
+        "use_label_smoothing": True,
+        "optimizer": "adamw_optimizer",
+        "use_scheduler": True,
+        "hyperparameters": {
+            "dropout1": 0.4,
+            "fc1_output": 512,
+            "fc2_output": 256,
+            "conv5_filters": 1024,
+            "fc1_input": 1024,
+        },
+    },
     # Use wl_ls_hp_tunning + AdamW optimizer
     # data_augmentation
     # increase batch size
 }
 
 # Change the experiment only
-experiment_name = "wl_ls_hp_tunning_3"
+experiment_name = "wl_ls_hp_adw"
 
 configuration = get_configuration(experiment_name)
 dataset = datasets[configuration["dataset"]]
