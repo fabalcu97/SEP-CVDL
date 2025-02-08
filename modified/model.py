@@ -7,16 +7,16 @@ from variables import hyperparameters
 class EmotionClassifier(nn.Module):
     def __init__(self):
         super(EmotionClassifier, self).__init__()
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, padding=1)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
-        self.conv2 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(64, 128, kernel_size=3, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(128)
-        self.conv3 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(128, 256, kernel_size=3, padding=1, bias=False)
         self.bn3 = nn.BatchNorm2d(256)
-        self.conv4 = nn.Conv2d(256, 512, kernel_size=3, padding=1)
+        self.conv4 = nn.Conv2d(256, 512, kernel_size=3, padding=1, bias=False)
         self.bn4 = nn.BatchNorm2d(512)
         self.conv5 = nn.Conv2d(
-            512, hyperparameters["conv5_filters"], kernel_size=3, padding=1
+            512, hyperparameters["conv5_filters"], kernel_size=3, padding=1, bias=False
         )
         self.bn5 = nn.BatchNorm2d(hyperparameters["conv5_filters"])
 
