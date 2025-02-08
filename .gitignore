@@ -5,8 +5,6 @@ archive/CK+
 archive/TFEID
 # data
 dataset_original
-*.pth
-!best_GiMeFive.pth
 result.md
 
 .DS_Store
