@@ -37,32 +37,32 @@ class EmotionClassifier(nn.Module):
 
     def forward(self, x):  # (batch_size, channels=3, 64, 64)
         x = self.conv1(x)
-        x = self.bn1(x)
         x = F.leaky_relu(x)
+        x = self.bn1(x)
         x = F.max_pool2d(x, 2)
         x = self.dropout1(x)
 
         x = self.conv2(x)
-        x = self.bn2(x)
         x = F.leaky_relu(x)
+        x = self.bn2(x)
         x = F.max_pool2d(x, 2)
         x = self.dropout1(x)
 
         x = self.conv3(x)
-        x = self.bn3(x)
         x = F.leaky_relu(x)
+        x = self.bn3(x)
         x = F.max_pool2d(x, 2)
         x = self.dropout1(x)
 
         x = self.conv4(x)
-        x = self.bn4(x)
         x = F.leaky_relu(x)
+        x = self.bn4(x)
         x = F.max_pool2d(x, 2)
         x = self.dropout1(x)
 
         x = self.conv5(x)
-        x = self.bn5(x)
         x = F.leaky_relu(x)
+        x = self.bn5(x)
         x = F.max_pool2d(x, 2)
         # x = self.dropout1(x)
 

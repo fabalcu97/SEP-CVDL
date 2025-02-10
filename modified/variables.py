@@ -159,13 +159,20 @@ experiments = {
         "apply_weighted_loss": True,
         "hyperparameters": {"batch_size": 32},
     },
-    # Use wl_ls_hp_tunning + AdamW optimizer
-    # data_augmentation
+    # activation(leaky relu)
     "leaky_relu": {},
+    # batch norm after activation(leaky relu)
+    "bn_after_activation": {},
+    # weighted loss and lr
+    "wl_lr": {
+        "apply_weighted_loss": True,
+    },
+    # weighted loss and batch norm after activation(leaky relu)
+    "wl_bn_after_lr": {},
 }
 
 # Change the experiment only
-experiment_name = "leaky_relu"
+experiment_name = "wl_bn_after_lr"
 
 configuration = get_configuration(experiment_name)
 dataset = datasets[configuration["dataset"]]
