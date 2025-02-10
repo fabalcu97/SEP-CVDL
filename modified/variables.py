@@ -154,13 +154,18 @@ experiments = {
             "fc1_input": 1024,
         },
     },
+    # increase batch size
+    "batch_32_wl": {
+        "apply_weighted_loss": True,
+        "hyperparameters": {"batch_size": 32},
+    },
     # Use wl_ls_hp_tunning + AdamW optimizer
     # data_augmentation
-    # increase batch size
+    "leaky_relu": {},
 }
 
 # Change the experiment only
-experiment_name = "wl_ls_hp_adw"
+experiment_name = "leaky_relu"
 
 configuration = get_configuration(experiment_name)
 dataset = datasets[configuration["dataset"]]

@@ -16,7 +16,11 @@ class EmotionClassifier(nn.Module):
         self.conv4 = nn.Conv2d(256, 512, kernel_size=3, padding=1, bias=False)
         self.bn4 = nn.BatchNorm2d(512)
         self.conv5 = nn.Conv2d(
-            512, hyperparameters["conv5_filters"], kernel_size=3, padding=1, bias=False
+            512,
+            hyperparameters["conv5_filters"],
+            kernel_size=3,
+            padding=1,
+            bias=False,
         )
         self.bn5 = nn.BatchNorm2d(hyperparameters["conv5_filters"])
 
@@ -32,26 +36,40 @@ class EmotionClassifier(nn.Module):
         self.fc3 = nn.Linear(hyperparameters["fc2_output"], 6)
 
     def forward(self, x):  # (batch_size, channels=3, 64, 64)
-        x = F.relu(self.bn1(self.conv1(x)))  # (batch_size, 64, 64, 64)
-        x = F.max_pool2d(x, 2)  # (batch_size, 64, 32, 32)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = F.leaky_relu(x)
+        x = F.max_pool2d(x, 2)
         x = self.dropout1(x)
-        x = F.relu(self.bn2(self.conv2(x)))  # (batch_size, 128, 32, 32)
-        x = F.max_pool2d(x, 2)  # (batch_size, 128, 16, 16)
+
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = F.leaky_relu(x)
+        x = F.max_pool2d(x, 2)
         x = self.dropout1(x)
-        x = F.relu(self.bn3(self.conv3(x)))  # (batch_size, 256, 16, 16)
-        x = F.max_pool2d(x, 2)  # (batch_size, 256, 8, 8)
+
+        x = self.conv3(x)
+        x = self.bn3(x)
+        x = F.leaky_relu(x)
+        x = F.max_pool2d(x, 2)
         x = self.dropout1(x)
-        x = F.relu(self.bn4(self.conv4(x)))  # (batch_size, 512, 8, 8)
-        x = F.max_pool2d(x, 2)  # (batch_size, 512, 4, 4)
+
+        x = self.conv4(x)
+        x = self.bn4(x)
+        x = F.leaky_relu(x)
+        x = F.max_pool2d(x, 2)
         x = self.dropout1(x)
-        x = F.relu(self.bn5(self.conv5(x)))  # (batch_size, 1024, 4, 4)
-        x = F.max_pool2d(x, 2)  # (batch_size, 1024, 2, 2)
+
+        x = self.conv5(x)
+        x = self.bn5(x)
+        x = F.leaky_relu(x)
+        x = F.max_pool2d(x, 2)
         # x = self.dropout1(x)
 
-        x = self.pool(x)  # (batch_size, 1024, 1, 1)
-        x = x.view(x.size(0), -1)  # (batch_size, 1024) # Flatten
-        x = F.relu(self.fc1(x))  # (batch_size, 2048)
-        x = self.dropout2(x)  # (batch_size, 2048)
-        x = F.relu(self.fc2(x))  # (batch_size, 1024)
-        x = self.fc3(x)  # (batch_size, 6)
+        x = self.pool(x)
+        x = x.view(x.size(0), -1)  # flatten
+        x = F.leaky_relu(self.fc1(x))
+        x = self.dropout2(x)
+        x = F.leaky_relu(self.fc2(x))
+        x = self.fc3(x)
         return x
