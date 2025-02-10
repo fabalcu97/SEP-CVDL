@@ -1,3 +1,6 @@
+import torch.nn.functional as F
+
+
 def get_configuration(experiment_name):
     baseline_configuration = experiments["baseline"]
     configuration = experiments[experiment_name]
@@ -44,6 +47,9 @@ experiments = {
         "dataset": "GiMeFive",
         "use_scheduler": False,
         "use_label_smoothing": False,
+        "change_batch_norm": False,
+        "use_conv_bias": True,
+        "activation_function": F.relu,
         "hyperparameters": {
             "num_epochs": 80,
             "batch_size": 16,
@@ -160,15 +166,25 @@ experiments = {
         "hyperparameters": {"batch_size": 32},
     },
     # activation(leaky relu)
-    "leaky_relu": {},
+    "leaky_relu": {
+        "activation_function": F.leaky_relu,
+    },
     # batch norm after activation(leaky relu)
-    "bn_after_activation": {},
+    "bn_after_activation": {
+        "change_batch_norm": True,
+    },
     # weighted loss and lr
     "wl_lr": {
+        "activation_function": F.leaky_relu,
         "apply_weighted_loss": True,
     },
     # weighted loss and batch norm after activation(leaky relu)
-    "wl_bn_after_lr": {},
+    "wl_bn_after_lr": {
+        "change_batch_norm": True,
+        "activation_function": F.leaky_relu,
+    },
+    "down_sampling": {},
+    "up_sampling": {},
 }
 
 # Change the experiment only
