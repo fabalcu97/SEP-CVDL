@@ -32,3 +32,5 @@ __pycache__
 *.brf
 
 .venv
+
+**/outputs/**/*.pth
