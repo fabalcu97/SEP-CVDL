@@ -188,7 +188,7 @@ experiments = {
 }
 
 # Change the experiment only
-experiment_name = "wl_bn_after_lr"
+experiment_name = "down_sampling"
 
 configuration = get_configuration(experiment_name)
 dataset = datasets[configuration["dataset"]]
