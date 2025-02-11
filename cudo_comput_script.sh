@@ -18,4 +18,4 @@ jupyter lab --allow-root --ip 0.0.0.0 --notebook-dir=. & disown
 
 
 # To copy things
-# scp -r cudo_compute:/root/SEP-CVDL/modified/outputs/down_sampling ./modified/outputs/down_sampling
+# scp -r cudo_compute:/root/SEP-CVDL/modified/outputs/sc_wl_lr_ls_aw ./modified/outputs/sc_wl_lr_ls_aw

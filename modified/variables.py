@@ -186,10 +186,16 @@ experiments = {
         "use_label_smoothing": True,
         "optimizer": "adamw_optimizer",
     },
+    "mish": {
+        "activation_function": F.mish,
+    },
+    "swish": {
+        "activation_function": F.hardswish,
+    },
 }
 
 # Change the experiment only
-experiment_name = "sc_wl_lr_ls_aw"
+experiment_name = "mish"
 
 configuration = get_configuration(experiment_name)
 dataset = datasets[configuration["dataset"]]
