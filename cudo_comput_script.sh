@@ -14,8 +14,8 @@ python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cd modified
-jupyter lab --allow-root --ip 0.0.0.0 --notebook-dir=.
+jupyter lab --allow-root --ip 0.0.0.0 --notebook-dir=. & disown
 
 
 # To copy things
-# scp -r cudo_compute:/root/SEP-CVDL/modified/outputs/wl_bn_after_lr ./modified/outputs/wl_bn_after_lr
+# scp -r cudo_compute:/root/SEP-CVDL/modified/outputs/down_sampling ./modified/outputs/down_sampling

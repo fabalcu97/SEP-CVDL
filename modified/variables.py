@@ -87,17 +87,10 @@ experiments = {
             "fc2_output": 512,
         },
     },
-    "SCHEDULER": {
+    "scheduler": {
         "apply_weighted_loss": True,
         "optimizer": "adamw_optimizer",
         "use_scheduler": True,
-        "hyperparameters": {
-            "dropout1": 0.3,
-            "conv5_filters": 768,
-            "fc1_input": 768,
-            "fc1_output": 1024,
-            "fc2_output": 512,
-        },
     },
     "weighted_loss": {
         "apply_weighted_loss": True,
@@ -184,11 +177,19 @@ experiments = {
         "activation_function": F.leaky_relu,
     },
     "down_sampling": {},
-    "up_sampling": {},
+    "torch_sampler": {},
+    # "up_sampling": {},
+    "sc_wl_lr_ls_aw": {
+        "use_scheduler": True,
+        "apply_weighted_loss": True,
+        "activation_function": F.leaky_relu,
+        "use_label_smoothing": True,
+        "optimizer": "adamw_optimizer",
+    },
 }
 
 # Change the experiment only
-experiment_name = "down_sampling"
+experiment_name = "sc_wl_lr_ls_aw"
 
 configuration = get_configuration(experiment_name)
 dataset = datasets[configuration["dataset"]]
